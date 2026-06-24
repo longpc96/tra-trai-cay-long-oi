@@ -8,7 +8,15 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
-const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_DIR_CANDIDATES = [
+  path.join(__dirname, "public"),
+  path.join(process.cwd(), "public"),
+  path.join(__dirname, "order-web-upload", "public"),
+  path.join(process.cwd(), "order-web-upload", "public"),
+  path.join(__dirname, "order-web-online", "public"),
+  path.join(process.cwd(), "order-web-online", "public")
+];
+const PUBLIC_DIR = PUBLIC_DIR_CANDIDATES.find(dir => fs.existsSync(path.join(dir, "index.html"))) || PUBLIC_DIR_CANDIDATES[0];
 const MAX_BODY_SIZE = 3_000_000;
 const MAX_IMAGE_LENGTH = 2_200_000;
 const sessions = new Set();
@@ -131,7 +139,14 @@ function serveStatic(req, res) {
   if (!filePath.startsWith(PUBLIC_DIR)) return send(res, 403, "Forbidden", "text/plain; charset=utf-8");
 
   fs.readFile(filePath, (error, data) => {
-    if (error) return send(res, 404, "Not found", "text/plain; charset=utf-8");
+    if (error) {
+      return send(
+        res,
+        404,
+        `Not found: ${safePath}\nExpected public folder at: ${PUBLIC_DIR}\nMake sure public/index.html exists.`,
+        "text/plain; charset=utf-8"
+      );
+    }
     const ext = path.extname(filePath).toLowerCase();
     const types = {
       ".html": "text/html; charset=utf-8",
@@ -307,4 +322,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   ensureStore();
   console.log(`Order web is running on http://localhost:${PORT}`);
+  console.log(`Serving static files from ${PUBLIC_DIR}`);
 });
