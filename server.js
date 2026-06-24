@@ -20,6 +20,7 @@ const PUBLIC_DIR = PUBLIC_DIR_CANDIDATES.find(dir => fs.existsSync(path.join(dir
 const MAX_BODY_SIZE = 3_000_000;
 const MAX_IMAGE_LENGTH = 2_200_000;
 const sessions = new Set();
+const adminEvents = new Set();
 
 function ensureStore() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -120,6 +121,16 @@ function adminSummary(store) {
     }
     return sum + (order.quantity || 0);
   }, 0);
+  const revenueByDateMap = new Map();
+  for (const order of completedOrders) {
+    const dateKey = new Date(order.createdAt).toLocaleDateString("vi-VN");
+    const current = revenueByDateMap.get(dateKey) || { date: dateKey, totalRevenue: 0, totalOrders: 0, totalSold: 0 };
+    current.totalRevenue += order.total || 0;
+    current.totalOrders += 1;
+    current.totalSold += orderQuantity(order);
+    revenueByDateMap.set(dateKey, current);
+  }
+
   return {
     shopName: store.shopName,
     bankQr: store.bankQr || "",
@@ -128,9 +139,66 @@ function adminSummary(store) {
     summary: {
       totalRevenue,
       totalOrders: completedOrders.length,
-      totalSold
+      totalSold,
+      revenueByDate: Array.from(revenueByDateMap.values()).reverse()
     }
   };
+}
+
+function orderQuantity(order) {
+  if (Array.isArray(order.items)) {
+    return order.items.reduce((sum, item) => sum + item.quantity, 0);
+  }
+  return order.quantity || 0;
+}
+
+function adminOrders(store) {
+  const summary = adminSummary(store).summary;
+  return {
+    orders: store.orders,
+    summary
+  };
+}
+
+function writeAdminEvent(res, data) {
+  res.write(`event: orders\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function notifyAdminOrders() {
+  if (!adminEvents.size) return;
+  const data = adminOrders(readStore());
+  for (const client of Array.from(adminEvents)) {
+    try {
+      writeAdminEvent(client.res, data);
+    } catch {
+      adminEvents.delete(client);
+    }
+  }
+}
+
+function handleAdminOrderEvents(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  const token = url.searchParams.get("token") || "";
+  if (!sessions.has(token)) return send(res, 401, { error: "Ban can dang nhap quan tri." });
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-store",
+    Connection: "keep-alive"
+  });
+
+  const client = { res };
+  adminEvents.add(client);
+  writeAdminEvent(res, adminOrders(readStore()));
+
+  const keepAlive = setInterval(() => {
+    res.write(": keep-alive\n\n");
+  }, 25000);
+
+  req.on("close", () => {
+    clearInterval(keepAlive);
+    adminEvents.delete(client);
+  });
 }
 
 function serveStatic(req, res) {
@@ -219,6 +287,7 @@ async function handleApi(req, res) {
 
     store.orders.push(order);
     writeStore(store);
+    notifyAdminOrders();
     return send(res, 201, { ok: true, orderId: order.id });
   }
 
@@ -232,12 +301,20 @@ async function handleApi(req, res) {
     return send(res, 200, { token });
   }
 
+  if (req.method === "GET" && req.url.startsWith("/api/admin/orders/events")) {
+    return handleAdminOrderEvents(req, res);
+  }
+
   if (req.url.startsWith("/api/admin") && !isAdmin(req)) {
     return send(res, 401, { error: "Bạn cần đăng nhập quản trị." });
   }
 
   if (req.method === "GET" && req.url === "/api/admin/dashboard") {
     return send(res, 200, adminSummary(store));
+  }
+
+  if (req.method === "GET" && req.url === "/api/admin/orders/live") {
+    return send(res, 200, adminOrders(store));
   }
 
   if (req.method === "PATCH" && req.url.startsWith("/api/admin/orders/")) {
@@ -250,6 +327,17 @@ async function handleApi(req, res) {
     if (!order) return send(res, 404, { error: "Không tìm thấy đơn hàng." });
     order.status = action === "complete" ? "completed" : "cancelled";
     writeStore(store);
+    notifyAdminOrders();
+    return send(res, 200, adminSummary(store));
+  }
+
+  if (req.method === "DELETE" && req.url.startsWith("/api/admin/orders/") && req.url !== "/api/admin/orders") {
+    const id = decodeURIComponent(req.url.split("/").pop());
+    const order = store.orders.find(item => item.id === id);
+    if (!order) return send(res, 404, { error: "Khong tim thay don hang." });
+    store.orders = store.orders.filter(item => item.id !== id);
+    writeStore(store);
+    notifyAdminOrders();
     return send(res, 200, adminSummary(store));
   }
 
@@ -303,6 +391,7 @@ async function handleApi(req, res) {
   if (req.method === "DELETE" && req.url === "/api/admin/orders") {
     store.orders = [];
     writeStore(store);
+    notifyAdminOrders();
     return send(res, 200, adminSummary(store));
   }
 
