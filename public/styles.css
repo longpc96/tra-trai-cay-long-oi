@@ -501,6 +501,16 @@ textarea { min-height: 74px; resize: vertical; }
   margin-top: 8px;
   font-size: 24px;
 }
+.revenue-days-panel {
+  margin-bottom: 18px;
+}
+.revenue-table-wrap table {
+  min-width: 560px;
+}
+.revenue-table-wrap td:nth-child(2),
+.revenue-table-wrap th:nth-child(2) {
+  font-weight: 900;
+}
 .admin-grid {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);

@@ -1,7 +1,10 @@
 let adminToken = sessionStorage.getItem("adminToken") || "";
 let publicData = { shopName: "Trà Trái Cây Long Ơi", products: [], bankQr: "" };
 let cart = [];
+let dashboardRefreshTimer = null;
+let dashboardEventSource = null;
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
+const DASHBOARD_REFRESH_MS = 5000;
 
 const money = value => new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value || 0);
 
@@ -235,6 +238,163 @@ async function updateOrderStatus(id, action) {
   renderDashboard(data);
 }
 
+async function deleteCompletedOrder(id) {
+  if (!confirm("Xoa don nay khoi doanh thu?")) return;
+  const data = await request(`/api/admin/orders/${encodeURIComponent(id)}`, { method: "DELETE" });
+  renderDashboard(data);
+}
+
+function renderOrderDashboard(data) {
+  document.querySelector("#totalRevenue").textContent = money(data.summary.totalRevenue);
+  document.querySelector("#totalOrders").textContent = data.summary.totalOrders;
+  document.querySelector("#totalSold").textContent = data.summary.totalSold;
+
+  const dailyRevenue = document.querySelector("#dailyRevenue");
+  if (dailyRevenue) {
+    dailyRevenue.innerHTML = "";
+    const days = data.summary.revenueByDate || [];
+    if (!days.length) {
+      const tr = document.createElement("tr");
+      const td = createText("td", "Ch\u01b0a c\u00f3 doanh thu.", "empty");
+      td.colSpan = 4;
+      tr.appendChild(td);
+      dailyRevenue.appendChild(tr);
+    } else {
+      days.forEach(day => {
+        const tr = document.createElement("tr");
+        [day.date, money(day.totalRevenue), day.totalOrders, day.totalSold].forEach(value => {
+          const td = document.createElement("td");
+          td.textContent = value;
+          tr.appendChild(td);
+        });
+        dailyRevenue.appendChild(tr);
+      });
+    }
+  }
+
+  const pendingOrders = data.orders.filter(order => (order.status || "pending") === "pending");
+  const completedOrders = data.orders.filter(order => order.status === "completed");
+
+  const pending = document.querySelector("#pendingOrders");
+  pending.innerHTML = "";
+  if (!pendingOrders.length) {
+    const tr = document.createElement("tr");
+    const td = createText("td", "Ch\u01b0a c\u00f3 \u0111\u01a1n m\u1edbi.", "empty");
+    td.colSpan = 7;
+    tr.appendChild(td);
+    pending.appendChild(tr);
+  } else {
+    pendingOrders.slice().reverse().forEach(order => {
+      const tr = document.createElement("tr");
+      const createdAt = new Date(order.createdAt).toLocaleString("vi-VN");
+      [
+        createdAt,
+        `${order.name}\n${order.phone}`,
+        orderItemsText(order),
+        orderQuantity(order),
+        money(order.total),
+        order.address
+      ].forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      const actionTd = document.createElement("td");
+      const actions = document.createElement("div");
+      actions.className = "order-actions";
+      const done = createText("button", "Ho\u00e0n th\u00e0nh", "btn small");
+      done.type = "button";
+      done.addEventListener("click", () => updateOrderStatus(order.id, "complete"));
+      const cancel = createText("button", "H\u1ee7y", "btn danger small");
+      cancel.type = "button";
+      cancel.addEventListener("click", () => updateOrderStatus(order.id, "cancel"));
+      actions.append(done, cancel);
+      actionTd.appendChild(actions);
+      tr.appendChild(actionTd);
+      pending.appendChild(tr);
+    });
+  }
+
+  const orders = document.querySelector("#orders");
+  orders.innerHTML = "";
+  if (!completedOrders.length) {
+    const tr = document.createElement("tr");
+    const td = createText("td", "Ch\u01b0a c\u00f3 \u0111\u01a1n h\u00e0ng.", "empty");
+    td.colSpan = 7;
+    tr.appendChild(td);
+    orders.appendChild(tr);
+  } else {
+    completedOrders.slice().reverse().forEach(order => {
+      const tr = document.createElement("tr");
+      const createdAt = new Date(order.createdAt).toLocaleString("vi-VN");
+      [
+        createdAt,
+        `${order.name}\n${order.phone}`,
+        orderItemsText(order),
+        orderQuantity(order),
+        money(order.total),
+        order.address,
+        order.note || ""
+      ].forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      const actionTd = document.createElement("td");
+      const remove = createText("button", "X\u00f3a doanh thu", "btn danger small");
+      remove.type = "button";
+      remove.addEventListener("click", () => deleteCompletedOrder(order.id));
+      actionTd.appendChild(remove);
+      tr.appendChild(actionTd);
+      orders.appendChild(tr);
+    });
+  }
+}
+
+async function refreshOrdersQuietly() {
+  if (!adminToken || document.hidden) return;
+  try {
+    const data = await request("/api/admin/orders/live");
+    renderOrderDashboard(data);
+  } catch (error) {
+    stopDashboardAutoRefresh();
+  }
+}
+
+function startDashboardAutoRefresh() {
+  if (dashboardEventSource || dashboardRefreshTimer) return;
+  if ("EventSource" in window) {
+    dashboardEventSource = new EventSource(`/api/admin/orders/events?token=${encodeURIComponent(adminToken)}`);
+    dashboardEventSource.addEventListener("orders", event => {
+      renderOrderDashboard(JSON.parse(event.data));
+    });
+    dashboardEventSource.onerror = () => {
+      if (dashboardEventSource) {
+        dashboardEventSource.close();
+        dashboardEventSource = null;
+      }
+      if (!adminToken) return;
+      if (!dashboardRefreshTimer) {
+        refreshOrdersQuietly();
+        dashboardRefreshTimer = setInterval(refreshOrdersQuietly, DASHBOARD_REFRESH_MS);
+      }
+    };
+    return;
+  }
+  dashboardRefreshTimer = setInterval(refreshOrdersQuietly, DASHBOARD_REFRESH_MS);
+}
+
+function stopDashboardAutoRefresh() {
+  if (dashboardEventSource) {
+    dashboardEventSource.close();
+    dashboardEventSource = null;
+  }
+  if (dashboardRefreshTimer) {
+    clearInterval(dashboardRefreshTimer);
+    dashboardRefreshTimer = null;
+  }
+}
+
 function renderDashboard(data) {
   setShopName(data.shopName);
   publicData = { shopName: data.shopName, bankQr: data.bankQr || "", products: data.products.filter(product => product.isActive !== false) };
@@ -280,6 +440,9 @@ function renderDashboard(data) {
       adminProducts.appendChild(row);
     });
   }
+
+  renderOrderDashboard(data);
+  return;
 
   const pendingOrders = data.orders.filter(order => (order.status || "pending") === "pending");
   const completedOrders = data.orders.filter(order => order.status === "completed");
@@ -447,6 +610,7 @@ document.querySelector("#loginForm").addEventListener("submit", async event => {
     document.querySelector("#loginPanel").classList.add("hidden");
     document.querySelector("#adminPanel").classList.remove("hidden");
     await loadDashboard();
+    startDashboardAutoRefresh();
   } catch (error) {
     showMessage(message, error.message, true);
   }
@@ -517,6 +681,7 @@ document.querySelector("#clearOrders").addEventListener("click", async () => {
 document.querySelector("#logout").addEventListener("click", () => {
   adminToken = "";
   sessionStorage.removeItem("adminToken");
+  stopDashboardAutoRefresh();
   document.querySelector("#loginPanel").classList.remove("hidden");
   document.querySelector("#adminPanel").classList.add("hidden");
 });
@@ -528,7 +693,9 @@ if (adminToken) {
   loadDashboard().catch(() => {
     adminToken = "";
     sessionStorage.removeItem("adminToken");
+    stopDashboardAutoRefresh();
     document.querySelector("#loginPanel").classList.remove("hidden");
     document.querySelector("#adminPanel").classList.add("hidden");
   });
+  startDashboardAutoRefresh();
 }
