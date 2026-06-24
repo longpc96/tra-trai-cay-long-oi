@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trà Trái Cây Long Ơi</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark">L</span><span id="shopName">Trà Trái Cây Long Ơi</span></div>
+      <nav class="tabs">
+        <button class="tab active" data-view="gateway">Trang đầu</button>
+        <button class="tab" data-view="customer">Khách hàng</button>
+        <button class="tab" data-view="admin">Quản trị</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section id="gateway" class="view active">
+      <section class="gateway-hero">
+        <div>
+          <img class="gateway-logo" src="/long-oi-logo.png" alt="Trà Trái Cây Long Ơi">
+          <h1>Chọn khu vực phù hợp để tiếp tục</h1>
+        </div>
+        <div class="gateway-actions">
+          <button id="customerEntry" class="entry-card" type="button">
+            <strong>Khách hàng</strong>
+            <span>Vào trang order sản phẩm</span>
+          </button>
+          <button id="adminEntry" class="entry-card admin-entry" type="button">
+            <strong>Quản trị</strong>
+            <span>Đăng nhập để quản lý shop</span>
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section id="customer" class="view">
+      <section class="store-hero">
+        <div>
+          <p class="eyebrow">Đặt hàng trực tuyến</p>
+          <h1 id="customerShopName">Trà Trái Cây Long Ơi</h1>
+          <p>Chọn sản phẩm, kiểm tra giỏ hàng và gửi thông tin nhận hàng. Chủ shop sẽ thấy đơn trong trang quản trị.</p>
+        </div>
+        <div class="hero-badge">
+          <strong id="publicProductCount">0</strong>
+          <span>sản phẩm đang bán</span>
+        </div>
+      </section>
+
+      <div class="shop-layout">
+        <aside class="category-panel">
+          <h2>Danh mục</h2>
+          <button class="category active" type="button">Tất cả</button>
+          <button class="category" type="button">Sản phẩm</button>
+        </aside>
+
+        <section class="menu-panel">
+          <div class="menu-tools">
+            <div>
+              <h2>Thực đơn</h2>
+              <p>Chọn sản phẩm để thêm vào giỏ hàng.</p>
+            </div>
+            <label class="search-label">
+              <span>Tìm sản phẩm</span>
+              <input id="productSearch" type="search" placeholder="Nhập tên sản phẩm">
+            </label>
+          </div>
+          <div id="products" class="products"></div>
+        </section>
+
+        <aside class="cart-panel">
+          <h2>Thông tin liên hệ</h2>
+          <form id="orderForm" class="checkout-form">
+            <label>Họ tên<input id="orderName" type="text" required></label>
+            <label>Số điện thoại<input id="orderPhone" type="tel" required></label>
+            <label>Địa chỉ<textarea id="orderAddress" required></textarea></label>
+            <label>Ghi chú<textarea id="orderNote"></textarea></label>
+            <div class="checkout-block">
+              <div class="cart-head">
+                <h2>Món đã chọn</h2>
+                <strong id="cartCount">0</strong>
+              </div>
+              <div id="cartItems" class="cart-items"></div>
+              <div class="cart-total">
+                <span>Tổng cộng</span>
+                <strong id="cartTotal">0đ</strong>
+              </div>
+            </div>
+            <div class="checkout-block">
+              <h2>Phương thức thanh toán</h2>
+              <div class="payment-methods">
+                <label class="payment-card">
+                  <input type="radio" name="paymentMethod" value="cash" checked>
+                  <strong>Tiền mặt</strong>
+                  <span>Thanh toán khi nhận hàng</span>
+                </label>
+                <label class="payment-card">
+                  <input type="radio" name="paymentMethod" value="bank">
+                  <strong>Chuyển khoản</strong>
+                  <span>Quét QR ngân hàng</span>
+                </label>
+              </div>
+              <div id="bankQrBox" class="bank-qr hidden"></div>
+            </div>
+            <button class="btn" type="submit">Gửi đơn hàng</button>
+            <div id="orderMessage" class="message"></div>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <section id="admin" class="view">
+      <div id="loginPanel" class="panel login">
+        <h2>Đăng nhập quản trị</h2>
+        <p>Chỉ chủ shop dùng phần này để xem đơn hàng, doanh thu và thêm sản phẩm.</p>
+        <form id="loginForm">
+          <label>Tài khoản quản trị<input id="adminUsername" type="text" autocomplete="username" value="admin" required></label>
+          <label>Mật khẩu quản trị<input id="adminPassword" type="password" autocomplete="current-password" required></label>
+          <button class="btn" type="submit">Đăng nhập</button>
+          <div id="loginMessage" class="message"></div>
+        </form>
+      </div>
+
+      <div id="adminPanel" class="admin hidden">
+        <div class="summary">
+          <div><span>Tổng doanh thu</span><strong id="totalRevenue">0đ</strong></div>
+          <div><span>Số đơn hàng</span><strong id="totalOrders">0</strong></div>
+          <div><span>Sản phẩm đã bán</span><strong id="totalSold">0</strong></div>
+        </div>
+
+        <div class="admin-grid">
+          <aside class="panel">
+            <h2>Thông tin shop</h2>
+            <form id="shopForm">
+              <label>Tên shop<input id="shopNameInput" type="text" required></label>
+              <label>Chọn QR ngân hàng<input id="bankQrFile" type="file" accept="image/*"></label>
+              <div id="bankQrPreview" class="image-preview hidden"></div>
+              <label>Hoặc dán link QR ngân hàng<input id="bankQrInput" type="url" placeholder="https://..."></label>
+              <button class="btn secondary" type="submit">Lưu thông tin shop</button>
+            </form>
+
+            <h2>Thêm sản phẩm</h2>
+            <form id="productForm">
+              <label>Tên sản phẩm<input id="productName" type="text" required></label>
+              <label>Giá bán<input id="productPrice" type="number" min="0" step="1000" required></label>
+              <label>Mô tả<textarea id="productDescription"></textarea></label>
+              <label>Chọn ảnh từ máy<input id="productImageFile" type="file" accept="image/*"></label>
+              <div id="imagePreview" class="image-preview hidden"></div>
+              <label>Hoặc dán link ảnh<input id="productImage" type="url" placeholder="https://..."></label>
+              <button class="btn" type="submit">Thêm sản phẩm</button>
+            </form>
+            <div class="actions">
+              <button id="clearOrders" class="btn danger" type="button">Xóa đơn hàng</button>
+              <button id="logout" class="btn secondary" type="button">Đăng xuất</button>
+            </div>
+          </aside>
+
+          <section>
+            <div class="panel">
+              <h2>Sản phẩm đang bán</h2>
+              <div id="adminProducts" class="admin-products"></div>
+            </div>
+            <div class="panel">
+              <h2>Đơn mới cần xử lý</h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Thời gian</th>
+                      <th>Khách</th>
+                      <th>Sản phẩm</th>
+                      <th>SL</th>
+                      <th>Thành tiền</th>
+                      <th>Địa chỉ</th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pendingOrders"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>Đơn đã hoàn thành / Doanh thu</h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Thời gian</th>
+                      <th>Khách</th>
+                      <th>Sản phẩm</th>
+                      <th>SL</th>
+                      <th>Thành tiền</th>
+                      <th>Địa chỉ</th>
+                      <th>Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orders"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
