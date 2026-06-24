@@ -1,0 +1,16 @@
+﻿{
+    "products":  [
+                     {
+                         "id":  "193e7d61-2d5e-4da7-9ce9-eed84566e1c2",
+                         "name":  "San pham mau",
+                         "description":  "Ban co the doi thanh san pham that trong trang quan tri.",
+                         "price":  99000,
+                         "image":  "",
+                         "isActive":  true
+                     }
+                 ],
+    "shopName":  "Shop Order",
+    "orders":  [
+
+               ]
+}
