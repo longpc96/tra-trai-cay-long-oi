@@ -24,6 +24,7 @@ const MAX_BODY_SIZE = 3_000_000;
 const MAX_IMAGE_LENGTH = 2_200_000;
 const sessions = new Set();
 const adminEvents = new Set();
+let storeMutationQueue = Promise.resolve();
 
 function ensureStore() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -158,6 +159,17 @@ async function saveStore(store) {
     console.error(`Supabase save failed: ${error.message}`);
     writeStore(store);
   }
+}
+
+async function runStoreMutation(mutator) {
+  const run = storeMutationQueue.then(async () => {
+    const store = await loadStore();
+    const result = await mutator(store);
+    await saveStore(store);
+    return result ?? store;
+  });
+  storeMutationQueue = run.catch(() => {});
+  return run;
 }
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
@@ -515,6 +527,23 @@ async function handleApi(req, res) {
     return send(res, 200, adminSummary(store));
   }
 
+  if (req.method === "PATCH" && req.url.startsWith("/api/admin/products/") && req.url.endsWith("/status")) {
+    const parts = req.url.split("/");
+    const id = decodeURIComponent(parts[parts.length - 2] || "");
+    const body = await readBody(req);
+    const summary = await runStoreMutation(currentStore => {
+      const product = currentStore.products.find(item => item.id === id);
+      if (!product) {
+        const error = new Error("Khong tim thay san pham.");
+        error.status = 404;
+        throw error;
+      }
+      product.isActive = body.isActive !== false;
+      return adminSummary(currentStore);
+    });
+    return send(res, 200, summary);
+  }
+
   if (req.method === "PATCH" && req.url.startsWith("/api/admin/products/")) {
     store = await getStore();
     const parts = req.url.split("/");
@@ -553,7 +582,7 @@ async function handleApi(req, res) {
 const server = http.createServer((req, res) => {
   if (req.url.startsWith("/api/")) {
     handleApi(req, res).catch(error => {
-      send(res, 500, { error: error.message || "Server error" });
+      send(res, error.status || 500, { error: error.message || "Server error" });
     });
     return;
   }
