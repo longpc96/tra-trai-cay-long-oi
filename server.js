@@ -234,6 +234,7 @@ function adminSummary(store) {
     return sum + (order.quantity || 0);
   }, 0);
   const revenueByDateMap = new Map();
+  const productSalesByDateMap = new Map();
   for (const order of completedOrders) {
     const dateKey = new Date(order.createdAt).toLocaleDateString("vi-VN");
     const current = revenueByDateMap.get(dateKey) || { date: dateKey, totalRevenue: 0, totalOrders: 0, totalSold: 0 };
@@ -241,7 +242,24 @@ function adminSummary(store) {
     current.totalOrders += 1;
     current.totalSold += orderQuantity(order);
     revenueByDateMap.set(dateKey, current);
+
+    const dayProducts = productSalesByDateMap.get(dateKey) || new Map();
+    const items = Array.isArray(order.items) && order.items.length
+      ? order.items
+      : [{ productName: order.productName || "Sản phẩm", quantity: order.quantity || 0, total: order.total || 0 }];
+    for (const item of items) {
+      const productName = item.productName || "Sản phẩm";
+      const product = dayProducts.get(productName) || { productName, quantity: 0, totalRevenue: 0 };
+      product.quantity += Number(item.quantity) || 0;
+      product.totalRevenue += Number(item.total) || ((Number(item.price) || 0) * (Number(item.quantity) || 0));
+      dayProducts.set(productName, product);
+    }
+    productSalesByDateMap.set(dateKey, dayProducts);
   }
+  const productSalesByDate = Array.from(productSalesByDateMap.entries()).map(([date, products]) => ({
+    date,
+    products: Array.from(products.values()).sort((a, b) => b.quantity - a.quantity)
+  })).reverse();
 
   return {
     shopName: store.shopName,
@@ -254,7 +272,8 @@ function adminSummary(store) {
       totalRevenue,
       totalOrders: completedOrders.length,
       totalSold,
-      revenueByDate: Array.from(revenueByDateMap.values()).reverse()
+      revenueByDate: Array.from(revenueByDateMap.values()).reverse(),
+      productSalesByDate
     }
   };
 }
