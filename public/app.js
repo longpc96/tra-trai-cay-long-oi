@@ -239,7 +239,7 @@ async function updateOrderStatus(id, action) {
 }
 
 async function deleteCompletedOrder(id) {
-  if (!confirm("Xoa don nay khoi doanh thu?")) return;
+  if (!confirm("X\u00f3a \u0111\u01a1n n\u00e0y kh\u1ecfi doanh thu?")) return;
   const data = await request(`/api/admin/orders/${encodeURIComponent(id)}`, { method: "DELETE" });
   renderDashboard(data);
 }
