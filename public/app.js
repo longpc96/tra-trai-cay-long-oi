@@ -3,6 +3,9 @@ let publicData = { shopName: "Trà Trái Cây Long Ơi", products: [], bankQr: "
 let cart = [];
 let dashboardRefreshTimer = null;
 let dashboardEventSource = null;
+let knownPendingOrderIds = new Set();
+let orderPopupTimer = null;
+let hasLoadedAdminOrders = false;
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const DASHBOARD_REFRESH_MS = 5000;
 
@@ -233,6 +236,44 @@ function orderQuantity(order) {
   return order.quantity || 0;
 }
 
+function scrollToPendingOrders() {
+  document.querySelector("#pendingOrders")?.closest(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function showNewOrderPopup(order) {
+  if (!adminToken) return;
+  let popup = document.querySelector("#newOrderPopup");
+  if (!popup) {
+    popup = document.createElement("button");
+    popup.id = "newOrderPopup";
+    popup.className = "new-order-popup hidden";
+    popup.type = "button";
+    popup.addEventListener("click", () => {
+      popup.classList.add("hidden");
+      scrollToPendingOrders();
+    });
+    document.body.appendChild(popup);
+  }
+
+  popup.innerHTML = "";
+  popup.appendChild(createText("strong", "\u0110\u01a1n m\u1edbi v\u1eeba \u0111\u1eb7t"));
+  popup.appendChild(createText("span", `${order.name || "Kh\u00e1ch"} - ${orderQuantity(order)} m\u00f3n - ${money(order.total)}`));
+  popup.classList.remove("hidden");
+
+  clearTimeout(orderPopupTimer);
+  orderPopupTimer = setTimeout(() => popup.classList.add("hidden"), 12000);
+}
+
+function notifyNewPendingOrders(pendingOrders) {
+  const nextIds = new Set(pendingOrders.map(order => order.id));
+  if (hasLoadedAdminOrders) {
+    const newOrders = pendingOrders.filter(order => !knownPendingOrderIds.has(order.id));
+    if (newOrders.length) showNewOrderPopup(newOrders[newOrders.length - 1]);
+  }
+  knownPendingOrderIds = nextIds;
+  hasLoadedAdminOrders = true;
+}
+
 async function updateOrderStatus(id, action) {
   const data = await request(`/api/admin/orders/${encodeURIComponent(id)}/${action}`, { method: "PATCH" });
   renderDashboard(data);
@@ -274,6 +315,7 @@ function renderOrderDashboard(data) {
 
   const pendingOrders = data.orders.filter(order => (order.status || "pending") === "pending");
   const completedOrders = data.orders.filter(order => order.status === "completed");
+  notifyNewPendingOrders(pendingOrders);
 
   const pending = document.querySelector("#pendingOrders");
   pending.innerHTML = "";
@@ -393,6 +435,9 @@ function stopDashboardAutoRefresh() {
     clearInterval(dashboardRefreshTimer);
     dashboardRefreshTimer = null;
   }
+  knownPendingOrderIds = new Set();
+  hasLoadedAdminOrders = false;
+  document.querySelector("#newOrderPopup")?.classList.add("hidden");
 }
 
 function renderDashboard(data) {
