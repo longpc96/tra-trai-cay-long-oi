@@ -37,6 +37,10 @@ function ensureStore() {
         accountName: "VU DUC LONG",
         transferPrefix: "LONGOI"
       },
+      openingHours: {
+        open: "10:00",
+        close: "23:00"
+      },
       products: [
         {
           id: crypto.randomUUID(),
@@ -65,6 +69,10 @@ function readStore() {
     accountName: store.bank?.accountName || "VU DUC LONG",
     transferPrefix: store.bank?.transferPrefix || "LONGOI"
   };
+  store.openingHours = {
+    open: store.openingHours?.open || "10:00",
+    close: store.openingHours?.close || "23:00"
+  };
   store.products = (store.products || []).map(product => ({
     ...product,
     isActive: product.isActive !== false
@@ -91,6 +99,10 @@ function normalizeStore(store) {
     accountNumber: store.bank?.accountNumber || "9916617122001",
     accountName: store.bank?.accountName || "VU DUC LONG",
     transferPrefix: store.bank?.transferPrefix || "LONGOI"
+  };
+  store.openingHours = {
+    open: store.openingHours?.open || "10:00",
+    close: store.openingHours?.close || "23:00"
   };
   store.products = (store.products || []).map(product => ({ ...product, isActive: product.isActive !== false }));
   store.orders = (store.orders || []).map(order => ({ ...order, status: order.status || "pending" }));
@@ -185,11 +197,17 @@ function requiredText(value, maxLength) {
   return text;
 }
 
+function timeText(value, fallback) {
+  const text = String(value || "").trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : fallback;
+}
+
 function publicShop(store) {
   return {
     shopName: store.shopName,
     bankQr: store.bankQr || "",
     bank: store.bank,
+    openingHours: store.openingHours,
     products: store.products.filter(product => product.isActive !== false)
   };
 }
@@ -217,6 +235,7 @@ function adminSummary(store) {
     shopName: store.shopName,
     bankQr: store.bankQr || "",
     bank: store.bank,
+    openingHours: store.openingHours,
     products: store.products,
     orders: store.orders,
     summary: {
@@ -445,10 +464,15 @@ async function handleApi(req, res) {
       accountName: requiredText(body.bankAccountName, 100) || "VU DUC LONG",
       transferPrefix: requiredText(body.bankTransferPrefix, 40) || "LONGOI"
     };
+    const openingHours = {
+      open: timeText(body.openTime, "10:00"),
+      close: timeText(body.closeTime, "23:00")
+    };
     if (!shopName) return send(res, 400, { error: "Tên shop chưa hợp lệ." });
     store.shopName = shopName;
     store.bankQr = bankQr;
     store.bank = bank;
+    store.openingHours = openingHours;
     await saveStore(store);
     return send(res, 200, adminSummary(store));
   }
@@ -466,6 +490,29 @@ async function handleApi(req, res) {
     store.products.push({ id: crypto.randomUUID(), name, price, description, image, isActive: true });
     await saveStore(store);
     return send(res, 201, adminSummary(store));
+  }
+
+  if (req.method === "PUT" && req.url.startsWith("/api/admin/products/")) {
+    store = await getStore();
+    const id = decodeURIComponent(req.url.split("/").pop());
+    const product = store.products.find(item => item.id === id);
+    if (!product) return send(res, 404, { error: "Không tìm thấy sản phẩm." });
+
+    const body = await readBody(req);
+    const name = requiredText(body.name, 100);
+    const price = Number(body.price);
+    const description = String(body.description || "").trim().slice(0, 500);
+    const image = String(body.image || "").trim().slice(0, MAX_IMAGE_LENGTH);
+    if (!name || !Number.isFinite(price) || price < 0) {
+      return send(res, 400, { error: "Thông tin sản phẩm chưa hợp lệ." });
+    }
+
+    product.name = name;
+    product.price = price;
+    product.description = description;
+    product.image = image;
+    await saveStore(store);
+    return send(res, 200, adminSummary(store));
   }
 
   if (req.method === "PATCH" && req.url.startsWith("/api/admin/products/")) {
