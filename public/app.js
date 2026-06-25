@@ -80,11 +80,11 @@ function renderImagePreview(dataUrl, selector = "#imagePreview") {
   preview.appendChild(img);
 }
 
-function setShopName(name) {
+function setShopName(name, updateInput = true) {
   const shopName = name || "Trà Trái Cây Long Ơi";
   document.querySelector("#shopName").textContent = shopName;
   document.querySelector("#customerShopName").textContent = shopName;
-  document.querySelector("#shopNameInput").value = shopName;
+  if (updateInput) document.querySelector("#shopNameInput").value = shopName;
 }
 
 function minutesFromTime(value) {
@@ -395,6 +395,36 @@ function renderOrderDashboard(data) {
     }
   }
 
+  const productSalesByDate = document.querySelector("#productSalesByDate");
+  if (productSalesByDate) {
+    productSalesByDate.innerHTML = "";
+    const days = data.summary.productSalesByDate || [];
+    if (!days.length) {
+      const tr = document.createElement("tr");
+      const td = createText("td", "Ch\u01b0a c\u00f3 m\u00f3n n\u00e0o \u0111\u01b0\u1ee3c b\u00e1n.", "empty");
+      td.colSpan = 4;
+      tr.appendChild(td);
+      productSalesByDate.appendChild(tr);
+    } else {
+      days.forEach(day => {
+        (day.products || []).forEach((product, index) => {
+          const tr = document.createElement("tr");
+          [
+            index === 0 ? day.date : "",
+            product.productName,
+            product.quantity,
+            money(product.totalRevenue)
+          ].forEach(value => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.appendChild(td);
+          });
+          productSalesByDate.appendChild(tr);
+        });
+      });
+    }
+  }
+
   const pendingOrders = data.orders.filter(order => (order.status || "pending") === "pending");
   const completedOrders = data.orders.filter(order => order.status === "completed");
   notifyNewPendingOrders(pendingOrders);
@@ -478,9 +508,9 @@ function renderOrderDashboard(data) {
 async function refreshOrdersQuietly() {
   if (!adminToken) return;
   try {
-    const data = await request("/api/admin/orders/live");
+    const data = await request("/api/admin/dashboard");
     dashboardRefreshFailures = 0;
-    renderOrderDashboard(data);
+    renderDashboard(data, { preserveShopForm: document.querySelector("#shopForm")?.contains(document.activeElement) });
   } catch (error) {
     dashboardRefreshFailures += 1;
     if (dashboardRefreshFailures >= 6 && error.message.toLowerCase().includes("dang nhap")) {
@@ -526,8 +556,8 @@ function stopDashboardAutoRefresh() {
   document.querySelector("#newOrderPopup")?.classList.add("hidden");
 }
 
-function renderDashboard(data) {
-  setShopName(data.shopName);
+function renderDashboard(data, options = {}) {
+  setShopName(data.shopName, !options.preserveShopForm);
   publicData = {
     shopName: data.shopName,
     bankQr: data.bankQr || "",
@@ -535,14 +565,16 @@ function renderDashboard(data) {
     openingHours: data.openingHours || publicData.openingHours,
     products: data.products.filter(product => product.isActive !== false)
   };
-  document.querySelector("#bankQrInput").value = data.bankQr || "";
-  document.querySelector("#openTimeInput").value = data.openingHours?.open || "10:00";
-  document.querySelector("#closeTimeInput").value = data.openingHours?.close || "23:00";
-  document.querySelector("#bankCodeInput").value = data.bank?.code || "MB";
-  document.querySelector("#bankAccountNumberInput").value = data.bank?.accountNumber || "9916617122001";
-  document.querySelector("#bankAccountNameInput").value = data.bank?.accountName || "VU DUC LONG";
-  document.querySelector("#bankTransferPrefixInput").value = data.bank?.transferPrefix || "LONGOI";
-  renderImagePreview(data.bankQr || "", "#bankQrPreview");
+  if (!options.preserveShopForm) {
+    document.querySelector("#bankQrInput").value = data.bankQr || "";
+    document.querySelector("#openTimeInput").value = data.openingHours?.open || "10:00";
+    document.querySelector("#closeTimeInput").value = data.openingHours?.close || "23:00";
+    document.querySelector("#bankCodeInput").value = data.bank?.code || "MB";
+    document.querySelector("#bankAccountNumberInput").value = data.bank?.accountNumber || "9916617122001";
+    document.querySelector("#bankAccountNameInput").value = data.bank?.accountName || "VU DUC LONG";
+    document.querySelector("#bankTransferPrefixInput").value = data.bank?.transferPrefix || "LONGOI";
+    renderImagePreview(data.bankQr || "", "#bankQrPreview");
+  }
   renderProducts();
   renderCart();
 
