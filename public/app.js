@@ -22,6 +22,7 @@ let orderPopupTimer = null;
 let hasLoadedAdminOrders = false;
 let dashboardRefreshFailures = 0;
 let editingProductId = "";
+let adminMutationSeq = 0;
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const DASHBOARD_REFRESH_MS = 5000;
 
@@ -723,12 +724,13 @@ async function deleteProduct(id) {
 }
 
 async function toggleProductStatus(id, shouldOpen) {
+  const mutationId = ++adminMutationSeq;
   const data = await request(`/api/admin/products/${encodeURIComponent(id)}/status`, {
     method: "PATCH",
     body: JSON.stringify({ isActive: shouldOpen })
   });
   if (!shouldOpen) cart = cart.filter(item => item.productId !== id);
-  renderDashboard(data);
+  if (mutationId === adminMutationSeq) renderDashboard(data);
 }
 
 document.querySelectorAll(".tab").forEach(tab => {
