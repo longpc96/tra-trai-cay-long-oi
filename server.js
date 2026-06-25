@@ -8,6 +8,9 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234";
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 const PUBLIC_DIR_CANDIDATES = [
   path.join(__dirname, "public"),
   path.join(process.cwd(), "public"),
@@ -65,6 +68,56 @@ function readStore() {
 function writeStore(store) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2));
+}
+
+function normalizeStore(store) {
+  store = store || {};
+  if (!store.shopName || store.shopName === "Shop Order") store.shopName = "TrÃ  TrÃ¡i CÃ¢y Long Æ i";
+  store.bankQr = store.bankQr || "";
+  store.products = (store.products || []).map(product => ({ ...product, isActive: product.isActive !== false }));
+  store.orders = (store.orders || []).map(order => ({ ...order, status: order.status || "pending" }));
+  return store;
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      ...(options.headers || {})
+    }
+  });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) throw new Error(data?.message || data?.error || "Supabase request failed");
+  return data;
+}
+
+async function loadStore() {
+  if (!USE_SUPABASE) return readStore();
+  const rows = await supabaseRequest("app_store?id=eq.main&select=data");
+  if (rows.length) return normalizeStore(rows[0].data);
+  const store = readStore();
+  await supabaseRequest("app_store", {
+    method: "POST",
+    body: JSON.stringify({ id: "main", data: store })
+  });
+  return store;
+}
+
+async function saveStore(store) {
+  store = normalizeStore(store);
+  if (!USE_SUPABASE) {
+    writeStore(store);
+    return;
+  }
+  await supabaseRequest("app_store?id=eq.main", {
+    method: "PATCH",
+    body: JSON.stringify({ data: store, updated_at: new Date().toISOString() })
+  });
 }
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
@@ -164,9 +217,9 @@ function writeAdminEvent(res, data) {
   res.write(`event: orders\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-function notifyAdminOrders() {
+async function notifyAdminOrders() {
   if (!adminEvents.size) return;
-  const data = adminOrders(readStore());
+  const data = adminOrders(await loadStore());
   for (const client of Array.from(adminEvents)) {
     try {
       writeAdminEvent(client.res, data);
@@ -176,7 +229,7 @@ function notifyAdminOrders() {
   }
 }
 
-function handleAdminOrderEvents(req, res) {
+async function handleAdminOrderEvents(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const token = url.searchParams.get("token") || "";
   if (!sessions.has(token)) return send(res, 401, { error: "Ban can dang nhap quan tri." });
@@ -189,7 +242,7 @@ function handleAdminOrderEvents(req, res) {
 
   const client = { res };
   adminEvents.add(client);
-  writeAdminEvent(res, adminOrders(readStore()));
+  writeAdminEvent(res, adminOrders(await loadStore()));
 
   const keepAlive = setInterval(() => {
     res.write(": keep-alive\n\n");
@@ -230,7 +283,7 @@ function serveStatic(req, res) {
 }
 
 async function handleApi(req, res) {
-  const store = readStore();
+  const store = await loadStore();
 
   if (req.method === "GET" && req.url === "/api/shop") {
     return send(res, 200, publicShop(store));
@@ -286,8 +339,8 @@ async function handleApi(req, res) {
     };
 
     store.orders.push(order);
-    writeStore(store);
-    notifyAdminOrders();
+    await saveStore(store);
+    await notifyAdminOrders();
     return send(res, 201, { ok: true, orderId: order.id });
   }
 
@@ -326,8 +379,8 @@ async function handleApi(req, res) {
     const order = store.orders.find(item => item.id === id);
     if (!order) return send(res, 404, { error: "Không tìm thấy đơn hàng." });
     order.status = action === "complete" ? "completed" : "cancelled";
-    writeStore(store);
-    notifyAdminOrders();
+    await saveStore(store);
+    await notifyAdminOrders();
     return send(res, 200, adminSummary(store));
   }
 
@@ -336,8 +389,8 @@ async function handleApi(req, res) {
     const order = store.orders.find(item => item.id === id);
     if (!order) return send(res, 404, { error: "Khong tim thay don hang." });
     store.orders = store.orders.filter(item => item.id !== id);
-    writeStore(store);
-    notifyAdminOrders();
+    await saveStore(store);
+    await notifyAdminOrders();
     return send(res, 200, adminSummary(store));
   }
 
@@ -348,7 +401,7 @@ async function handleApi(req, res) {
     if (!shopName) return send(res, 400, { error: "Tên shop chưa hợp lệ." });
     store.shopName = shopName;
     store.bankQr = bankQr;
-    writeStore(store);
+    await saveStore(store);
     return send(res, 200, adminSummary(store));
   }
 
@@ -362,7 +415,7 @@ async function handleApi(req, res) {
       return send(res, 400, { error: "Thông tin sản phẩm chưa hợp lệ." });
     }
     store.products.push({ id: crypto.randomUUID(), name, price, description, image, isActive: true });
-    writeStore(store);
+    await saveStore(store);
     return send(res, 201, adminSummary(store));
   }
 
@@ -377,21 +430,21 @@ async function handleApi(req, res) {
     if (!product) return send(res, 404, { error: "Không tìm thấy sản phẩm." });
 
     product.isActive = body.isActive !== false;
-    writeStore(store);
+    await saveStore(store);
     return send(res, 200, adminSummary(store));
   }
 
   if (req.method === "DELETE" && req.url.startsWith("/api/admin/products/")) {
     const id = decodeURIComponent(req.url.split("/").pop());
     store.products = store.products.filter(product => product.id !== id);
-    writeStore(store);
+    await saveStore(store);
     return send(res, 200, adminSummary(store));
   }
 
   if (req.method === "DELETE" && req.url === "/api/admin/orders") {
     store.orders = [];
-    writeStore(store);
-    notifyAdminOrders();
+    await saveStore(store);
+    await notifyAdminOrders();
     return send(res, 200, adminSummary(store));
   }
 
