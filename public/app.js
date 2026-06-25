@@ -1,5 +1,15 @@
 let adminToken = sessionStorage.getItem("adminToken") || "";
-let publicData = { shopName: "Trà Trái Cây Long Ơi", products: [], bankQr: "" };
+let publicData = {
+  shopName: "Trà Trái Cây Long Ơi",
+  products: [],
+  bankQr: "",
+  bank: {
+    code: "MB",
+    accountNumber: "9916617122001",
+    accountName: "VU DUC LONG",
+    transferPrefix: "LONGOI"
+  }
+};
 let cart = [];
 let dashboardRefreshTimer = null;
 let dashboardEventSource = null;
@@ -76,6 +86,30 @@ function renderBankQr() {
   box.innerHTML = "";
   box.classList.toggle("hidden", selected !== "bank");
   if (selected !== "bank") return;
+
+  const items = cartDetails();
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+  const bank = publicData.bank || {};
+  const bankCode = (bank.code || "MB").trim();
+  const accountNumber = (bank.accountNumber || "9916617122001").trim();
+  const accountName = (bank.accountName || "VU DUC LONG").trim();
+  const transferPrefix = (bank.transferPrefix || "LONGOI").trim();
+  const customerPhone = document.querySelector("#orderPhone")?.value.trim() || "";
+  const addInfo = `${transferPrefix} ${customerPhone || "DONHANG"}`.trim();
+
+  if (!total) {
+    box.appendChild(createText("div", "Vui lòng thêm món để tạo QR đúng số tiền.", "empty"));
+    return;
+  }
+
+  const dynamicImg = document.createElement("img");
+  dynamicImg.src = `https://img.vietqr.io/image/${encodeURIComponent(bankCode)}-${encodeURIComponent(accountNumber)}-compact2.png?amount=${encodeURIComponent(total)}&addInfo=${encodeURIComponent(addInfo)}&accountName=${encodeURIComponent(accountName)}`;
+  dynamicImg.alt = "QR ngân hàng";
+  box.appendChild(dynamicImg);
+  box.appendChild(createText("strong", `Quét QR để chuyển ${money(total)}`));
+  box.appendChild(createText("span", `${bankCode} - ${accountNumber} - ${accountName}`));
+  box.appendChild(createText("span", `Nội dung: ${addInfo}`));
+  return;
 
   if (!publicData.bankQr) {
     box.appendChild(createText("div", "Chủ shop chưa thêm QR ngân hàng.", "empty"));
@@ -442,8 +476,12 @@ function stopDashboardAutoRefresh() {
 
 function renderDashboard(data) {
   setShopName(data.shopName);
-  publicData = { shopName: data.shopName, bankQr: data.bankQr || "", products: data.products.filter(product => product.isActive !== false) };
+  publicData = { shopName: data.shopName, bankQr: data.bankQr || "", bank: data.bank || publicData.bank, products: data.products.filter(product => product.isActive !== false) };
   document.querySelector("#bankQrInput").value = data.bankQr || "";
+  document.querySelector("#bankCodeInput").value = data.bank?.code || "MB";
+  document.querySelector("#bankAccountNumberInput").value = data.bank?.accountNumber || "9916617122001";
+  document.querySelector("#bankAccountNameInput").value = data.bank?.accountName || "VU DUC LONG";
+  document.querySelector("#bankTransferPrefixInput").value = data.bank?.transferPrefix || "LONGOI";
   renderImagePreview(data.bankQr || "", "#bankQrPreview");
   renderProducts();
   renderCart();
@@ -566,6 +604,12 @@ async function loadPublicShop() {
   publicData = await request("/api/shop");
   setShopName(publicData.shopName);
   publicData.bankQr = publicData.bankQr || "";
+  publicData.bank = publicData.bank || {
+    code: "MB",
+    accountNumber: "9916617122001",
+    accountName: "VU DUC LONG",
+    transferPrefix: "LONGOI"
+  };
   renderProducts();
   renderCart();
 }
@@ -601,6 +645,7 @@ document.querySelector("#customerEntry").addEventListener("click", () => switchV
 document.querySelector("#adminEntry").addEventListener("click", () => switchView("admin"));
 
 document.querySelector("#productSearch").addEventListener("input", renderProducts);
+document.querySelector("#orderPhone").addEventListener("input", renderBankQr);
 document.querySelectorAll('input[name="paymentMethod"]').forEach(input => {
   input.addEventListener("change", renderBankQr);
 });
@@ -668,7 +713,11 @@ document.querySelector("#shopForm").addEventListener("submit", async event => {
     method: "PUT",
     body: JSON.stringify({
       shopName: document.querySelector("#shopNameInput").value,
-      bankQr: uploadedQr || document.querySelector("#bankQrInput").value
+      bankQr: uploadedQr || document.querySelector("#bankQrInput").value,
+      bankCode: document.querySelector("#bankCodeInput").value,
+      bankAccountNumber: document.querySelector("#bankAccountNumberInput").value,
+      bankAccountName: document.querySelector("#bankAccountNameInput").value,
+      bankTransferPrefix: document.querySelector("#bankTransferPrefixInput").value
     })
   });
   document.querySelector("#bankQrFile").value = "";
