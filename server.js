@@ -31,6 +31,12 @@ function ensureStore() {
     writeStore({
       shopName: "Trà Trái Cây Long Ơi",
       bankQr: "",
+      bank: {
+        code: "MB",
+        accountNumber: "9916617122001",
+        accountName: "VU DUC LONG",
+        transferPrefix: "LONGOI"
+      },
       products: [
         {
           id: crypto.randomUUID(),
@@ -53,6 +59,12 @@ function readStore() {
     store.shopName = "Trà Trái Cây Long Ơi";
   }
   store.bankQr = store.bankQr || "";
+  store.bank = {
+    code: store.bank?.code || "MB",
+    accountNumber: store.bank?.accountNumber || "9916617122001",
+    accountName: store.bank?.accountName || "VU DUC LONG",
+    transferPrefix: store.bank?.transferPrefix || "LONGOI"
+  };
   store.products = (store.products || []).map(product => ({
     ...product,
     isActive: product.isActive !== false
@@ -74,6 +86,12 @@ function normalizeStore(store) {
   store = store || {};
   if (!store.shopName || store.shopName === "Shop Order") store.shopName = "TrÃ  TrÃ¡i CÃ¢y Long Æ i";
   store.bankQr = store.bankQr || "";
+  store.bank = {
+    code: store.bank?.code || "MB",
+    accountNumber: store.bank?.accountNumber || "9916617122001",
+    accountName: store.bank?.accountName || "VU DUC LONG",
+    transferPrefix: store.bank?.transferPrefix || "LONGOI"
+  };
   store.products = (store.products || []).map(product => ({ ...product, isActive: product.isActive !== false }));
   store.orders = (store.orders || []).map(order => ({ ...order, status: order.status || "pending" }));
   return store;
@@ -171,6 +189,7 @@ function publicShop(store) {
   return {
     shopName: store.shopName,
     bankQr: store.bankQr || "",
+    bank: store.bank,
     products: store.products.filter(product => product.isActive !== false)
   };
 }
@@ -197,6 +216,7 @@ function adminSummary(store) {
   return {
     shopName: store.shopName,
     bankQr: store.bankQr || "",
+    bank: store.bank,
     products: store.products,
     orders: store.orders,
     summary: {
@@ -419,9 +439,16 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const shopName = requiredText(body.shopName, 80);
     const bankQr = String(body.bankQr || "").trim().slice(0, MAX_IMAGE_LENGTH);
+    const bank = {
+      code: requiredText(body.bankCode, 20) || "MB",
+      accountNumber: requiredText(body.bankAccountNumber, 40) || "9916617122001",
+      accountName: requiredText(body.bankAccountName, 100) || "VU DUC LONG",
+      transferPrefix: requiredText(body.bankTransferPrefix, 40) || "LONGOI"
+    };
     if (!shopName) return send(res, 400, { error: "Tên shop chưa hợp lệ." });
     store.shopName = shopName;
     store.bankQr = bankQr;
+    store.bank = bank;
     await saveStore(store);
     return send(res, 200, adminSummary(store));
   }
