@@ -98,14 +98,19 @@ async function supabaseRequest(pathname, options = {}) {
 
 async function loadStore() {
   if (!USE_SUPABASE) return readStore();
-  const rows = await supabaseRequest("app_store?id=eq.main&select=data");
-  if (rows.length) return normalizeStore(rows[0].data);
-  const store = readStore();
-  await supabaseRequest("app_store", {
-    method: "POST",
-    body: JSON.stringify({ id: "main", data: store })
-  });
-  return store;
+  try {
+    const rows = await supabaseRequest("app_store?id=eq.main&select=data");
+    if (rows.length) return normalizeStore(rows[0].data);
+    const store = readStore();
+    await supabaseRequest("app_store", {
+      method: "POST",
+      body: JSON.stringify({ id: "main", data: store })
+    });
+    return store;
+  } catch (error) {
+    console.error(`Supabase load failed: ${error.message}`);
+    return readStore();
+  }
 }
 
 async function saveStore(store) {
@@ -114,10 +119,15 @@ async function saveStore(store) {
     writeStore(store);
     return;
   }
-  await supabaseRequest("app_store?id=eq.main", {
-    method: "PATCH",
-    body: JSON.stringify({ data: store, updated_at: new Date().toISOString() })
-  });
+  try {
+    await supabaseRequest("app_store?id=eq.main", {
+      method: "PATCH",
+      body: JSON.stringify({ data: store, updated_at: new Date().toISOString() })
+    });
+  } catch (error) {
+    console.error(`Supabase save failed: ${error.message}`);
+    writeStore(store);
+  }
 }
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
@@ -283,13 +293,19 @@ function serveStatic(req, res) {
 }
 
 async function handleApi(req, res) {
-  const store = await loadStore();
+  let store;
+  const getStore = async () => {
+    if (!store) store = await loadStore();
+    return store;
+  };
 
   if (req.method === "GET" && req.url === "/api/shop") {
+    store = await getStore();
     return send(res, 200, publicShop(store));
   }
 
   if (req.method === "POST" && req.url === "/api/orders") {
+    store = await getStore();
     const body = await readBody(req);
     const requestedItems = Array.isArray(body.items)
       ? body.items
@@ -363,14 +379,17 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && req.url === "/api/admin/dashboard") {
+    store = await getStore();
     return send(res, 200, adminSummary(store));
   }
 
   if (req.method === "GET" && req.url === "/api/admin/orders/live") {
+    store = await getStore();
     return send(res, 200, adminOrders(store));
   }
 
   if (req.method === "PATCH" && req.url.startsWith("/api/admin/orders/")) {
+    store = await getStore();
     const parts = req.url.split("/");
     const id = decodeURIComponent(parts[parts.length - 2] || "");
     const action = parts[parts.length - 1];
@@ -385,6 +404,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "DELETE" && req.url.startsWith("/api/admin/orders/") && req.url !== "/api/admin/orders") {
+    store = await getStore();
     const id = decodeURIComponent(req.url.split("/").pop());
     const order = store.orders.find(item => item.id === id);
     if (!order) return send(res, 404, { error: "Khong tim thay don hang." });
@@ -395,6 +415,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "PUT" && req.url === "/api/admin/shop") {
+    store = await getStore();
     const body = await readBody(req);
     const shopName = requiredText(body.shopName, 80);
     const bankQr = String(body.bankQr || "").trim().slice(0, MAX_IMAGE_LENGTH);
@@ -406,6 +427,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && req.url === "/api/admin/products") {
+    store = await getStore();
     const body = await readBody(req);
     const name = requiredText(body.name, 100);
     const price = Number(body.price);
@@ -420,6 +442,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "PATCH" && req.url.startsWith("/api/admin/products/")) {
+    store = await getStore();
     const parts = req.url.split("/");
     const id = decodeURIComponent(parts[parts.length - 2] || "");
     const action = parts[parts.length - 1];
@@ -435,6 +458,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "DELETE" && req.url.startsWith("/api/admin/products/")) {
+    store = await getStore();
     const id = decodeURIComponent(req.url.split("/").pop());
     store.products = store.products.filter(product => product.id !== id);
     await saveStore(store);
@@ -442,6 +466,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "DELETE" && req.url === "/api/admin/orders") {
+    store = await getStore();
     store.orders = [];
     await saveStore(store);
     await notifyAdminOrders();
