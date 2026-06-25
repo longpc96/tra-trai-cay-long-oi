@@ -8,6 +8,10 @@ let publicData = {
     accountNumber: "9916617122001",
     accountName: "VU DUC LONG",
     transferPrefix: "LONGOI"
+  },
+  openingHours: {
+    open: "10:00",
+    close: "23:00"
   }
 };
 let cart = [];
@@ -17,6 +21,7 @@ let knownPendingOrderIds = new Set();
 let orderPopupTimer = null;
 let hasLoadedAdminOrders = false;
 let dashboardRefreshFailures = 0;
+let editingProductId = "";
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const DASHBOARD_REFRESH_MS = 5000;
 
@@ -79,6 +84,47 @@ function setShopName(name) {
   document.querySelector("#shopName").textContent = shopName;
   document.querySelector("#customerShopName").textContent = shopName;
   document.querySelector("#shopNameInput").value = shopName;
+}
+
+function minutesFromTime(value) {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function isWithinOpeningHours(openTime, closeTime, now = new Date()) {
+  const open = minutesFromTime(openTime);
+  const close = minutesFromTime(closeTime);
+  if (open === null || close === null || open === close) return true;
+  const current = now.getHours() * 60 + now.getMinutes();
+  if (open < close) return current >= open && current < close;
+  return current >= open || current < close;
+}
+
+function renderOpeningHoursPopup() {
+  const oldPopup = document.querySelector("#openingHoursPopup");
+  if (oldPopup) oldPopup.remove();
+
+  const hours = publicData.openingHours || { open: "10:00", close: "23:00" };
+  if (isWithinOpeningHours(hours.open, hours.close)) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "openingHoursPopup";
+  overlay.className = "opening-hours-popup";
+
+  const modal = document.createElement("div");
+  modal.className = "opening-hours-modal";
+  modal.appendChild(createText("h2", "Shop hiện chưa trong giờ bán"));
+  modal.appendChild(createText("p", `Giờ mở cửa: ${hours.open} - ${hours.close}`));
+  modal.appendChild(createText("p", "Bạn vẫn có thể xem menu, shop sẽ xử lý đơn khi mở cửa."));
+
+  const close = createText("button", "Tôi đã hiểu", "btn");
+  close.type = "button";
+  close.addEventListener("click", () => overlay.remove());
+  modal.appendChild(close);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 function renderBankQr() {
@@ -481,8 +527,16 @@ function stopDashboardAutoRefresh() {
 
 function renderDashboard(data) {
   setShopName(data.shopName);
-  publicData = { shopName: data.shopName, bankQr: data.bankQr || "", bank: data.bank || publicData.bank, products: data.products.filter(product => product.isActive !== false) };
+  publicData = {
+    shopName: data.shopName,
+    bankQr: data.bankQr || "",
+    bank: data.bank || publicData.bank,
+    openingHours: data.openingHours || publicData.openingHours,
+    products: data.products.filter(product => product.isActive !== false)
+  };
   document.querySelector("#bankQrInput").value = data.bankQr || "";
+  document.querySelector("#openTimeInput").value = data.openingHours?.open || "10:00";
+  document.querySelector("#closeTimeInput").value = data.openingHours?.close || "23:00";
   document.querySelector("#bankCodeInput").value = data.bank?.code || "MB";
   document.querySelector("#bankAccountNumberInput").value = data.bank?.accountNumber || "9916617122001";
   document.querySelector("#bankAccountNameInput").value = data.bank?.accountName || "VU DUC LONG";
@@ -511,6 +565,12 @@ function renderDashboard(data) {
       const controls = document.createElement("div");
       controls.className = "admin-product-actions";
 
+      const editButton = document.createElement("button");
+      editButton.className = "btn secondary";
+      editButton.type = "button";
+      editButton.textContent = "Sửa";
+      editButton.addEventListener("click", () => startEditProduct(product));
+
       const statusButton = document.createElement("button");
       statusButton.className = product.isActive === false ? "btn" : "btn secondary";
       statusButton.type = "button";
@@ -523,7 +583,7 @@ function renderDashboard(data) {
       button.textContent = "Xóa";
       button.addEventListener("click", () => deleteProduct(product.id));
 
-      controls.append(statusButton, button);
+      controls.append(editButton, statusButton, button);
       row.append(info, controls);
       adminProducts.appendChild(row);
     });
@@ -615,8 +675,13 @@ async function loadPublicShop() {
     accountName: "VU DUC LONG",
     transferPrefix: "LONGOI"
   };
+  publicData.openingHours = publicData.openingHours || {
+    open: "10:00",
+    close: "23:00"
+  };
   renderProducts();
   renderCart();
+  renderOpeningHoursPopup();
 }
 
 async function loadDashboard() {
@@ -624,10 +689,36 @@ async function loadDashboard() {
   renderDashboard(data);
 }
 
+function resetProductForm() {
+  editingProductId = "";
+  document.querySelector("#editingProductId").value = "";
+  document.querySelector("#productFormTitle").textContent = "Thêm sản phẩm";
+  document.querySelector("#productSubmit").textContent = "Thêm sản phẩm";
+  document.querySelector("#cancelEditProduct").classList.add("hidden");
+  document.querySelector("#productForm").reset();
+  renderImagePreview("");
+}
+
+function startEditProduct(product) {
+  editingProductId = product.id;
+  document.querySelector("#editingProductId").value = product.id;
+  document.querySelector("#productFormTitle").textContent = "Sửa sản phẩm";
+  document.querySelector("#productSubmit").textContent = "Lưu sản phẩm";
+  document.querySelector("#cancelEditProduct").classList.remove("hidden");
+  document.querySelector("#productName").value = product.name || "";
+  document.querySelector("#productPrice").value = product.price || 0;
+  document.querySelector("#productDescription").value = product.description || "";
+  document.querySelector("#productImage").value = product.image || "";
+  document.querySelector("#productImageFile").value = "";
+  renderImagePreview(product.image || "");
+  document.querySelector("#productForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function deleteProduct(id) {
   if (!confirm("Xóa sản phẩm này?")) return;
   const data = await request(`/api/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
   cart = cart.filter(item => item.productId !== id);
+  if (editingProductId === id) resetProductForm();
   renderDashboard(data);
 }
 
@@ -723,6 +814,8 @@ document.querySelector("#shopForm").addEventListener("submit", async event => {
     method: "PUT",
     body: JSON.stringify({
       shopName: document.querySelector("#shopNameInput").value,
+      openTime: document.querySelector("#openTimeInput").value,
+      closeTime: document.querySelector("#closeTimeInput").value,
       bankQr: uploadedQr || document.querySelector("#bankQrInput").value,
       bankCode: document.querySelector("#bankCodeInput").value,
       bankAccountNumber: document.querySelector("#bankAccountNumberInput").value,
@@ -754,21 +847,25 @@ document.querySelector("#productImageFile").addEventListener("change", async eve
   }
 });
 
+document.querySelector("#cancelEditProduct").addEventListener("click", resetProductForm);
+
 document.querySelector("#productForm").addEventListener("submit", async event => {
   event.preventDefault();
   try {
     const imageFile = document.querySelector("#productImageFile").files[0];
     const uploadedImage = await readImageFile(imageFile);
-    const data = await request("/api/admin/products", {
-      method: "POST",
-      body: JSON.stringify({
-        name: document.querySelector("#productName").value,
-        price: Number(document.querySelector("#productPrice").value),
-        description: document.querySelector("#productDescription").value,
-        image: uploadedImage || document.querySelector("#productImage").value
-      })
+    const productId = document.querySelector("#editingProductId").value;
+    const payload = {
+      name: document.querySelector("#productName").value,
+      price: Number(document.querySelector("#productPrice").value),
+      description: document.querySelector("#productDescription").value,
+      image: uploadedImage || document.querySelector("#productImage").value
+    };
+    const data = await request(productId ? `/api/admin/products/${encodeURIComponent(productId)}` : "/api/admin/products", {
+      method: productId ? "PUT" : "POST",
+      body: JSON.stringify(payload)
     });
-    event.target.reset();
+    resetProductForm();
     renderImagePreview("");
     renderDashboard(data);
   } catch (error) {

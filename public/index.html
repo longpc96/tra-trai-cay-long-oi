@@ -154,6 +154,8 @@
             <h2>Thông tin shop</h2>
             <form id="shopForm">
               <label>Tên shop<input id="shopNameInput" type="text" required></label>
+              <label>Giờ mở quán<input id="openTimeInput" type="time" value="10:00" required></label>
+              <label>Giờ đóng quán<input id="closeTimeInput" type="time" value="23:00" required></label>
               <label>Chọn QR ngân hàng<input id="bankQrFile" type="file" accept="image/*"></label>
               <div id="bankQrPreview" class="image-preview hidden"></div>
               <label>Hoặc dán link QR ngân hàng<input id="bankQrInput" type="url" placeholder="https://..."></label>
@@ -164,15 +166,19 @@
               <button class="btn secondary" type="submit">Lưu thông tin shop</button>
             </form>
 
-            <h2>Thêm sản phẩm</h2>
+            <h2 id="productFormTitle">Thêm sản phẩm</h2>
             <form id="productForm">
+              <input id="editingProductId" type="hidden">
               <label>Tên sản phẩm<input id="productName" type="text" required></label>
               <label>Giá bán<input id="productPrice" type="number" min="0" step="1000" required></label>
               <label>Mô tả<textarea id="productDescription"></textarea></label>
               <label>Chọn ảnh từ máy<input id="productImageFile" type="file" accept="image/*"></label>
               <div id="imagePreview" class="image-preview hidden"></div>
               <label>Hoặc dán link ảnh<input id="productImage" type="url" placeholder="https://..."></label>
-              <button class="btn" type="submit">Thêm sản phẩm</button>
+              <div class="form-actions">
+                <button id="productSubmit" class="btn" type="submit">Thêm sản phẩm</button>
+                <button id="cancelEditProduct" class="btn secondary hidden" type="button">Hủy sửa</button>
+              </div>
             </form>
             <div class="actions">
               <button id="clearOrders" class="btn danger" type="button">Xóa đơn hàng</button>
