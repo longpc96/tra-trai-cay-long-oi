@@ -16,6 +16,7 @@ let dashboardEventSource = null;
 let knownPendingOrderIds = new Set();
 let orderPopupTimer = null;
 let hasLoadedAdminOrders = false;
+let dashboardRefreshFailures = 0;
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const DASHBOARD_REFRESH_MS = 5000;
 
@@ -428,20 +429,30 @@ function renderOrderDashboard(data) {
 }
 
 async function refreshOrdersQuietly() {
-  if (!adminToken || document.hidden) return;
+  if (!adminToken) return;
   try {
     const data = await request("/api/admin/orders/live");
+    dashboardRefreshFailures = 0;
     renderOrderDashboard(data);
   } catch (error) {
-    stopDashboardAutoRefresh();
+    dashboardRefreshFailures += 1;
+    if (dashboardRefreshFailures >= 6 && error.message.toLowerCase().includes("dang nhap")) {
+      stopDashboardAutoRefresh();
+    }
   }
 }
 
 function startDashboardAutoRefresh() {
-  if (dashboardEventSource || dashboardRefreshTimer) return;
+  if (dashboardRefreshTimer) return;
+  dashboardRefreshFailures = 0;
+  dashboardRefreshTimer = setInterval(refreshOrdersQuietly, DASHBOARD_REFRESH_MS);
+  refreshOrdersQuietly();
+
+  if (dashboardEventSource) return;
   if ("EventSource" in window) {
     dashboardEventSource = new EventSource(`/api/admin/orders/events?token=${encodeURIComponent(adminToken)}`);
     dashboardEventSource.addEventListener("orders", event => {
+      dashboardRefreshFailures = 0;
       renderOrderDashboard(JSON.parse(event.data));
     });
     dashboardEventSource.onerror = () => {
@@ -449,15 +460,8 @@ function startDashboardAutoRefresh() {
         dashboardEventSource.close();
         dashboardEventSource = null;
       }
-      if (!adminToken) return;
-      if (!dashboardRefreshTimer) {
-        refreshOrdersQuietly();
-        dashboardRefreshTimer = setInterval(refreshOrdersQuietly, DASHBOARD_REFRESH_MS);
-      }
     };
-    return;
   }
-  dashboardRefreshTimer = setInterval(refreshOrdersQuietly, DASHBOARD_REFRESH_MS);
 }
 
 function stopDashboardAutoRefresh() {
@@ -469,6 +473,7 @@ function stopDashboardAutoRefresh() {
     clearInterval(dashboardRefreshTimer);
     dashboardRefreshTimer = null;
   }
+  dashboardRefreshFailures = 0;
   knownPendingOrderIds = new Set();
   hasLoadedAdminOrders = false;
   document.querySelector("#newOrderPopup")?.classList.add("hidden");
@@ -649,6 +654,11 @@ document.querySelector("#orderPhone").addEventListener("input", renderBankQr);
 document.querySelectorAll('input[name="paymentMethod"]').forEach(input => {
   input.addEventListener("change", renderBankQr);
 });
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshOrdersQuietly();
+});
+window.addEventListener("focus", refreshOrdersQuietly);
 
 document.querySelector("#orderForm").addEventListener("submit", async event => {
   event.preventDefault();
