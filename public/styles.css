@@ -427,6 +427,63 @@ input:focus, textarea:focus, select:focus {
 }
 
 textarea { min-height: 74px; resize: vertical; }
+.address-field {
+  position: relative;
+  display: block;
+}
+.address-field textarea {
+  padding-right: 56px;
+}
+.location-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.location-button:hover {
+  color: var(--brand-dark);
+  border-color: var(--brand);
+  background: #e7f4ee;
+}
+.location-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+.address-suggestions {
+  display: grid;
+  gap: 6px;
+  margin-top: -4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(20, 34, 45, 0.12);
+}
+.address-suggestion {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--soft);
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.address-suggestion:hover {
+  color: var(--brand-dark);
+  background: #e7f4ee;
+}
 .btn {
   min-height: 42px;
   padding: 0 14px;

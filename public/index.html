@@ -77,7 +77,13 @@
           <form id="orderForm" class="checkout-form">
             <label>Họ tên<input id="orderName" type="text" required></label>
             <label>Số điện thoại<input id="orderPhone" type="tel" required></label>
-            <label>Địa chỉ<textarea id="orderAddress" required></textarea></label>
+            <label>Địa chỉ
+              <span class="address-field">
+                <textarea id="orderAddress" autocomplete="street-address" placeholder="Nhập số nhà, ngõ, phường..." required></textarea>
+                <button id="useLocation" class="location-button" type="button" title="Tự xác định vị trí">⌖</button>
+              </span>
+            </label>
+            <div id="addressSuggestions" class="address-suggestions hidden"></div>
             <label>Ghi chú<textarea id="orderNote"></textarea></label>
             <div class="checkout-block">
               <div class="cart-head">

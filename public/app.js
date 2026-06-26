@@ -25,6 +25,30 @@ let editingProductId = "";
 let adminMutationSeq = 0;
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const DASHBOARD_REFRESH_MS = 5000;
+const ADDRESS_SUGGESTIONS = [
+  "Phường Cổ Nhuế 1, Bắc Từ Liêm, Hà Nội",
+  "Phường Cổ Nhuế 2, Bắc Từ Liêm, Hà Nội",
+  "Phường Minh Khai, Bắc Từ Liêm, Hà Nội",
+  "Phường Phúc Diễn, Bắc Từ Liêm, Hà Nội",
+  "Phường Phú Diễn, Bắc Từ Liêm, Hà Nội",
+  "Phường Xuân Đỉnh, Bắc Từ Liêm, Hà Nội",
+  "Phường Xuân Tảo, Bắc Từ Liêm, Hà Nội",
+  "Phường Đông Ngạc, Bắc Từ Liêm, Hà Nội",
+  "Phường Đức Thắng, Bắc Từ Liêm, Hà Nội",
+  "Phường Thụy Phương, Bắc Từ Liêm, Hà Nội",
+  "Phường Liên Mạc, Bắc Từ Liêm, Hà Nội",
+  "Phường Thượng Cát, Bắc Từ Liêm, Hà Nội",
+  "Phường Tây Tựu, Bắc Từ Liêm, Hà Nội",
+  "Phường Tây Mỗ, Nam Từ Liêm, Hà Nội",
+  "Phường Đại Mỗ, Nam Từ Liêm, Hà Nội",
+  "Phường Mỹ Đình 1, Nam Từ Liêm, Hà Nội",
+  "Phường Mỹ Đình 2, Nam Từ Liêm, Hà Nội",
+  "Phường Cầu Diễn, Nam Từ Liêm, Hà Nội",
+  "Phường Mai Dịch, Cầu Giấy, Hà Nội",
+  "Phường Dịch Vọng Hậu, Cầu Giấy, Hà Nội",
+  "Phường Nghĩa Tân, Cầu Giấy, Hà Nội",
+  "Phường Nghĩa Đô, Cầu Giấy, Hà Nội"
+];
 
 const money = value => new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value || 0);
 
@@ -312,6 +336,80 @@ function renderCart() {
   document.querySelector("#cartCount").textContent = quantity;
   document.querySelector("#cartTotal").textContent = money(total);
   renderBankQr();
+}
+
+function hideAddressSuggestions() {
+  const box = document.querySelector("#addressSuggestions");
+  if (!box) return;
+  box.classList.add("hidden");
+  box.innerHTML = "";
+}
+
+function renderAddressSuggestions() {
+  const input = document.querySelector("#orderAddress");
+  const box = document.querySelector("#addressSuggestions");
+  if (!input || !box) return;
+
+  const keyword = input.value.trim().toLowerCase();
+  const matches = ADDRESS_SUGGESTIONS
+    .filter(address => !keyword || address.toLowerCase().includes(keyword))
+    .slice(0, 6);
+
+  box.innerHTML = "";
+  if (!matches.length) {
+    hideAddressSuggestions();
+    return;
+  }
+
+  matches.forEach(address => {
+    const button = createText("button", address, "address-suggestion");
+    button.type = "button";
+    button.addEventListener("click", () => {
+      const current = input.value.trim();
+      input.value = current && !address.toLowerCase().includes(current.toLowerCase())
+        ? `${current}, ${address}`
+        : address;
+      hideAddressSuggestions();
+      input.focus();
+    });
+    box.appendChild(button);
+  });
+  box.classList.remove("hidden");
+}
+
+function fillCurrentLocation() {
+  const input = document.querySelector("#orderAddress");
+  const button = document.querySelector("#useLocation");
+  if (!input || !button) return;
+
+  if (!navigator.geolocation) {
+    alert("Thiết bị của bạn không hỗ trợ tự xác định vị trí. Vui lòng nhập địa chỉ.");
+    return;
+  }
+
+  const oldText = button.textContent;
+  button.disabled = true;
+  button.textContent = "...";
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const { latitude, longitude } = position.coords;
+      const mapLink = `https://www.google.com/maps?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+      const current = input.value.trim();
+      input.value = current
+        ? `${current}\nVị trí giao hàng: ${mapLink}`
+        : `Vị trí giao hàng: ${mapLink}`;
+      hideAddressSuggestions();
+      input.focus();
+      button.disabled = false;
+      button.textContent = oldText;
+    },
+    () => {
+      alert("Không lấy được vị trí. Bạn hãy kiểm tra quyền vị trí hoặc nhập địa chỉ thủ công.");
+      button.disabled = false;
+      button.textContent = oldText;
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+  );
 }
 
 function orderItemsText(order) {
@@ -793,8 +891,17 @@ document.querySelector("#adminEntry").addEventListener("click", () => switchView
 
 document.querySelector("#productSearch").addEventListener("input", renderProducts);
 document.querySelector("#orderPhone").addEventListener("input", renderBankQr);
+document.querySelector("#orderAddress").addEventListener("input", renderAddressSuggestions);
+document.querySelector("#orderAddress").addEventListener("focus", renderAddressSuggestions);
+document.querySelector("#useLocation").addEventListener("click", fillCurrentLocation);
 document.querySelectorAll('input[name="paymentMethod"]').forEach(input => {
   input.addEventListener("change", renderBankQr);
+});
+
+document.addEventListener("click", event => {
+  if (!event.target.closest("#addressSuggestions") && event.target !== document.querySelector("#orderAddress")) {
+    hideAddressSuggestions();
+  }
 });
 
 document.addEventListener("visibilitychange", () => {
