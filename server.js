@@ -22,6 +22,13 @@ const PUBLIC_DIR_CANDIDATES = [
 const PUBLIC_DIR = PUBLIC_DIR_CANDIDATES.find(dir => fs.existsSync(path.join(dir, "index.html"))) || PUBLIC_DIR_CANDIDATES[0];
 const MAX_BODY_SIZE = 3_000_000;
 const MAX_IMAGE_LENGTH = 2_200_000;
+const SHOP_TIME_ZONE = "Asia/Bangkok";
+const shopDateFormatter = new Intl.DateTimeFormat("vi-VN", {
+  timeZone: SHOP_TIME_ZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric"
+});
 const sessions = new Set();
 const adminEvents = new Set();
 let storeMutationQueue = Promise.resolve();
@@ -214,6 +221,12 @@ function timeText(value, fallback) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : fallback;
 }
 
+function shopDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return shopDateFormatter.format(new Date());
+  return shopDateFormatter.format(date);
+}
+
 function publicShop(store) {
   return {
     shopName: store.shopName,
@@ -236,7 +249,7 @@ function adminSummary(store) {
   const revenueByDateMap = new Map();
   const productSalesByDateMap = new Map();
   for (const order of completedOrders) {
-    const dateKey = new Date(order.createdAt).toLocaleDateString("vi-VN");
+    const dateKey = shopDateKey(order.createdAt);
     const current = revenueByDateMap.get(dateKey) || { date: dateKey, totalRevenue: 0, totalOrders: 0, totalSold: 0 };
     current.totalRevenue += order.total || 0;
     current.totalOrders += 1;
