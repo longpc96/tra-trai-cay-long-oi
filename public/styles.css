@@ -501,6 +501,37 @@ textarea { min-height: 74px; resize: vertical; }
   margin-top: 8px;
   font-size: 24px;
 }
+.admin-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-section-tab {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 900;
+  cursor: pointer;
+}
+.admin-section-tab.active {
+  color: var(--brand-dark);
+  background: #e7f4ee;
+}
+.admin-section-panel.active {
+  display: block;
+}
+[data-admin-section="orders"].active {
+  display: grid;
+  gap: 18px;
+}
 .revenue-days-panel {
   margin-bottom: 18px;
 }

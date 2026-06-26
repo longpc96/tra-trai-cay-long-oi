@@ -132,7 +132,14 @@
           <div><span>Sản phẩm đã bán</span><strong id="totalSold">0</strong></div>
         </div>
 
-        <div class="panel revenue-days-panel">
+        <div class="admin-section-tabs">
+          <button class="admin-section-tab active" type="button" data-admin-section-target="products">Sản phẩm</button>
+          <button class="admin-section-tab" type="button" data-admin-section-target="dailyRevenue">Doanh thu theo ngày</button>
+          <button class="admin-section-tab" type="button" data-admin-section-target="productSales">Món bán theo ngày</button>
+          <button class="admin-section-tab" type="button" data-admin-section-target="orders">Đơn hàng</button>
+        </div>
+
+        <div class="panel revenue-days-panel admin-section-panel hidden" data-admin-section="dailyRevenue">
           <h2>Doanh thu theo ng&agrave;y</h2>
           <div class="table-wrap revenue-table-wrap">
             <table>
@@ -149,7 +156,7 @@
           </div>
         </div>
 
-        <div class="panel revenue-days-panel">
+        <div class="panel revenue-days-panel admin-section-panel hidden" data-admin-section="productSales">
           <h2>Món bán theo ngày</h2>
           <div class="table-wrap revenue-table-wrap">
             <table>
@@ -166,7 +173,7 @@
           </div>
         </div>
 
-        <div class="admin-grid">
+        <div class="admin-grid admin-section-panel active" data-admin-section="products">
           <aside class="panel">
             <h2>Thông tin shop</h2>
             <form id="shopForm">
@@ -208,6 +215,10 @@
               <h2>Sản phẩm đang bán</h2>
               <div id="adminProducts" class="admin-products"></div>
             </div>
+          </section>
+        </div>
+
+        <div class="admin-section-panel hidden" data-admin-section="orders">
             <div class="panel">
               <h2>Đơn mới cần xử lý</h2>
               <div class="table-wrap">
@@ -246,7 +257,6 @@
                 </table>
               </div>
             </div>
-          </section>
         </div>
       </div>
     </section>

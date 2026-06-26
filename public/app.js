@@ -179,6 +179,16 @@ function switchView(viewName) {
   document.querySelector(`#${viewName}`).classList.add("active");
 }
 
+function switchAdminSection(sectionName) {
+  document.querySelectorAll(".admin-section-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.adminSectionTarget === sectionName);
+  });
+  document.querySelectorAll(".admin-section-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.adminSection !== sectionName);
+    panel.classList.toggle("active", panel.dataset.adminSection === sectionName);
+  });
+}
+
 function filteredProducts() {
   const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
   if (!keyword) return publicData.products;
@@ -319,6 +329,7 @@ function orderQuantity(order) {
 }
 
 function scrollToPendingOrders() {
+  switchAdminSection("orders");
   document.querySelector("#pendingOrders")?.closest(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -768,6 +779,12 @@ async function toggleProductStatus(id, shouldOpen) {
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
     switchView(tab.dataset.view);
+  });
+});
+
+document.querySelectorAll(".admin-section-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    switchAdminSection(tab.dataset.adminSectionTarget);
   });
 });
 
